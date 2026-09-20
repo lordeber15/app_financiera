@@ -22,7 +22,7 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
 cp .env.example .env        # edita APP_PASSWORD y JWT_SECRET
 alembic upgrade head
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8014
 ```
 
 Genera un `JWT_SECRET` fuerte con:
@@ -49,9 +49,10 @@ pnpm install
 pnpm dev
 ```
 
-Abre `http://localhost:5173`. En dev, Vite reenvía `/api/*` al backend en el
-puerto 8000 (ver `vite.config.ts`), así que la cookie de sesión funciona sin
-configurar CORS entre puertos.
+Abre `http://localhost:5177`. En dev, Vite reenvía `/api/*` al backend (por
+defecto `http://localhost:8014`, configurable con `API_PROXY_TARGET` en
+`frontend/.env` — ver `vite.config.ts`), así que la cookie de sesión funciona
+sin configurar CORS entre puertos.
 
 Contraseña por defecto (`.env.example`): `admin`.
 

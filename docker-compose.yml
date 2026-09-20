@@ -17,9 +17,9 @@ services:
       - backend_data:/app/data
     ports:
       # Solo en loopback: para que el proxy de Vite (npm run dev, corriendo en
-      # la Mac) pueda llegar al backend en localhost:8000. No se expone a la
+      # la Mac) pueda llegar al backend en localhost:8014. No se expone a la
       # red (el nginx del frontend ya lo alcanza por la red interna de Docker).
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8014:8014"
     restart: unless-stopped
 
   frontend:

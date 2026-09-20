@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => {
   // '' como prefijo para leer también variables sin el prefijo VITE_ (esta no
   // se expone al navegador, solo la usa este archivo de config en Node).
   const env = loadEnv(mode, process.cwd(), '')
-  const apiProxyTarget = env.API_PROXY_TARGET || 'http://localhost:8000'
+  const apiProxyTarget = env.API_PROXY_TARGET || 'http://localhost:8014'
 
   return {
     // El modo 'mobile' (npm run dev:mobile) sirve por HTTPS con un certificado
