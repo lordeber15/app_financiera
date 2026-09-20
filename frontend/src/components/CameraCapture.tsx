@@ -184,7 +184,11 @@ export function CameraCapture({ autoCapture = false, paused = false, onCapture }
   return (
     <div className="space-y-3">
       <div className="relative overflow-hidden rounded-lg bg-black">
-        <video ref={videoRef} autoPlay playsInline muted className="aspect-[3/4] w-full object-cover" />
+        {/* Sin aspect-ratio fijo ni object-fit: cover — el video mantiene su
+            relación de aspecto nativa para que el recuadro guía (posicionado
+            en % sobre esta misma caja) coincida exactamente con la región que
+            `extractFeatures` recorta usando fracciones de videoWidth/videoHeight. */}
+        <video ref={videoRef} autoPlay playsInline muted className="block w-full" />
         <div
           className="pointer-events-none absolute rounded-lg border-4 border-white/80"
           style={{

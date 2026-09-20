@@ -2,6 +2,12 @@ services:
   backend:
     build: ./backend
     environment:
+      # Zona horaria del contenedor (logs, reloj del sistema). La app ya
+      # calcula los horarios de resumen diario/semanal con la zona horaria
+      # configurada en Ajustes (por defecto America/Lima, ver
+      # backend/app/models/settings.py) independientemente de esto — esto solo
+      # afecta timestamps de sistema/logs, no la lógica de negocio.
+      TZ: America/Lima
       # En producción cambia estos dos valores (usa APP_PASSWORD_HASH en vez de
       # APP_PASSWORD, y un JWT_SECRET largo y aleatorio).
       APP_PASSWORD: ${APP_PASSWORD:-admin}
@@ -24,6 +30,8 @@ services:
 
   frontend:
     build: ./frontend
+    environment:
+      TZ: America/Lima
     ports:
       - "5177:80"
     depends_on:
