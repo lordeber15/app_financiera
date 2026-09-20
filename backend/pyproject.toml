@@ -1,0 +1,9 @@
+[project]
+name = "notificaciones-financieras-backend"
+version = "0.1.0"
+description = "API de gastos por categoría con notificaciones a un webhook de n8n"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]

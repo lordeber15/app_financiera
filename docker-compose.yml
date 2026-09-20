@@ -1,0 +1,34 @@
+services:
+  backend:
+    build: ./backend
+    environment:
+      # En producción cambia estos dos valores (usa APP_PASSWORD_HASH en vez de
+      # APP_PASSWORD, y un JWT_SECRET largo y aleatorio).
+      APP_PASSWORD: ${APP_PASSWORD:-admin}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-use-a-long-random-value}
+      JWT_EXPIRE_HOURS: "168"
+      DATABASE_URL: sqlite:///./data/app.db
+      # El frontend llega por nginx en el mismo origen, así que no hace falta
+      # listar orígenes externos aquí salvo que abras la API directamente.
+      CORS_ORIGINS: http://localhost
+      COOKIE_SECURE: "false"
+      SCHEDULER_ENABLED: "true"
+    volumes:
+      - backend_data:/app/data
+    ports:
+      # Solo en loopback: para que el proxy de Vite (npm run dev, corriendo en
+      # la Mac) pueda llegar al backend en localhost:8000. No se expone a la
+      # red (el nginx del frontend ya lo alcanza por la red interna de Docker).
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend_data:
