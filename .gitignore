@@ -24,4 +24,4 @@ frontend/dist/
 .vscode/
 .idea/
 .claude
-
+.env.example
