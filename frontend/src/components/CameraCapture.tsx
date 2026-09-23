@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { GUIDE_BOX } from '../lib/cashRecognition'
 
 type PermissionState = 'requesting' | 'granted' | 'denied' | 'unsupported'
-type StillnessState = 'idle' | 'settling' | 'lockout'
+type StillnessState = 'idle' | 'settling' | 'hold'
 
 const MOVEMENT_THRESHOLD = 8
 const SETTLE_DURATION_MS = 700
@@ -13,11 +13,19 @@ const DIFF_CANVAS_HEIGHT = 36
 
 type CameraCaptureProps = {
   autoCapture?: boolean
-  paused?: boolean
+  // El padre lo pone en true al confirmar un conteo: el recuadro guía se pinta
+  // de verde hasta que se emita `onCleared` (retirada del objeto).
+  confirmed?: boolean
   onCapture: (video: HTMLVideoElement) => void
+  onCleared?: () => void
 }
 
-export function CameraCapture({ autoCapture = false, paused = false, onCapture }: CameraCaptureProps) {
+export function CameraCapture({
+  autoCapture = false,
+  confirmed = false,
+  onCapture,
+  onCleared,
+}: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const diffCanvasRef = useRef<HTMLCanvasElement>(null)
   const [permission, setPermission] = useState<PermissionState>(() => {
@@ -25,14 +33,21 @@ export function CameraCapture({ autoCapture = false, paused = false, onCapture }
     return 'requesting'
   })
   const [retryToken, setRetryToken] = useState(0)
+  // `inHold` es el espejo reactivo de `stillnessRef.current === 'hold'`, solo
+  // para deshabilitar el botón manual mientras dura la retención.
+  const [inHold, setInHold] = useState(false)
   const stillnessRef = useRef<StillnessState>('idle')
   const settleTimerRef = useRef<number | null>(null)
   const lockoutTimerRef = useRef<number | null>(null)
   const prevFrameRef = useRef<Uint8ClampedArray | null>(null)
   const onCaptureRef = useRef(onCapture)
+  const onClearedRef = useRef(onCleared)
+  const autoCaptureRef = useRef(autoCapture)
 
   useEffect(() => {
     onCaptureRef.current = onCapture
+    onClearedRef.current = onCleared
+    autoCaptureRef.current = autoCapture
   })
 
   useEffect(() => {
@@ -69,26 +84,33 @@ export function CameraCapture({ autoCapture = false, paused = false, onCapture }
   }, [retryToken])
 
   useEffect(() => {
-    if (permission !== 'granted' || !autoCapture || paused) {
-      stillnessRef.current = 'idle'
-      prevFrameRef.current = null
-      return
-    }
+    if (permission !== 'granted') return
 
     const canvas = diffCanvasRef.current
     const ctx = canvas?.getContext('2d', { willReadFrequently: true })
     if (!canvas || !ctx) return
+
+    function enterHold() {
+      stillnessRef.current = 'hold'
+      setInHold(true)
+    }
+
+    function leaveHold() {
+      stillnessRef.current = 'idle'
+      setInHold(false)
+      prevFrameRef.current = null
+    }
 
     function advanceStillness(diffScore: number, video: HTMLVideoElement) {
       const state = stillnessRef.current
       const stillNow = diffScore <= MOVEMENT_THRESHOLD
 
       if (state === 'idle') {
-        if (stillNow) {
+        if (stillNow && autoCaptureRef.current) {
           stillnessRef.current = 'settling'
           settleTimerRef.current = window.setTimeout(() => {
             if (stillnessRef.current === 'settling') {
-              stillnessRef.current = 'lockout'
+              enterHold()
               onCaptureRef.current(video)
             }
           }, SETTLE_DURATION_MS)
@@ -104,12 +126,16 @@ export function CameraCapture({ autoCapture = false, paused = false, onCapture }
         return
       }
 
-      // lockout: el billete/moneda ya se capturó y sigue quieto; solo se
-      // libera cuando hay movimiento sostenido (se retiró el objeto).
+      // hold: el objeto ya se capturó (automática o manual) y el estado se
+      // mantiene aunque el padre cierre o descarte el panel de sugerencia; solo
+      // se libera cuando hay movimiento sostenido (se retiró el objeto), que es
+      // además cuando se avisa al padre para limpiar su estado pendiente.
       if (!stillNow) {
         if (lockoutTimerRef.current) window.clearTimeout(lockoutTimerRef.current)
         lockoutTimerRef.current = window.setTimeout(() => {
-          stillnessRef.current = 'idle'
+          if (stillnessRef.current !== 'hold') return
+          leaveHold()
+          onClearedRef.current?.()
         }, LOCKOUT_RELEASE_DURATION_MS)
       } else if (lockoutTimerRef.current) {
         window.clearTimeout(lockoutTimerRef.current)
@@ -147,13 +173,20 @@ export function CameraCapture({ autoCapture = false, paused = false, onCapture }
       window.clearInterval(interval)
       if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current)
       if (lockoutTimerRef.current) window.clearTimeout(lockoutTimerRef.current)
+      // La cámara se reinicia o desmonta: el siguiente arranque parte limpio.
+      stillnessRef.current = 'idle'
+      setInHold(false)
+      prevFrameRef.current = null
     }
-  }, [permission, autoCapture, paused])
+    // La retención post-captura no depende de props del padre: cambiar
+    // `pending`/`confirmed` en el padre no reinicia este bucle.
+  }, [permission])
 
   function handleManualCapture() {
-    if (paused || permission !== 'granted' || !videoRef.current) return
+    if (inHold || permission !== 'granted' || !videoRef.current) return
     if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current)
-    stillnessRef.current = 'lockout'
+    stillnessRef.current = 'hold'
+    setInHold(true)
     onCaptureRef.current(videoRef.current)
   }
 
@@ -190,7 +223,9 @@ export function CameraCapture({ autoCapture = false, paused = false, onCapture }
             `extractFeatures` recorta usando fracciones de videoWidth/videoHeight. */}
         <video ref={videoRef} autoPlay playsInline muted className="block w-full" />
         <div
-          className="pointer-events-none absolute rounded-lg border-4 border-white/80"
+          className={`pointer-events-none absolute rounded-lg border-4 transition-colors duration-200 ${
+            confirmed ? 'border-emerald-400' : 'border-white/80'
+          }`}
           style={{
             left: `${GUIDE_BOX.x * 100}%`,
             top: `${GUIDE_BOX.y * 100}%`,
@@ -203,7 +238,7 @@ export function CameraCapture({ autoCapture = false, paused = false, onCapture }
       <button
         type="button"
         onClick={handleManualCapture}
-        disabled={permission !== 'granted' || paused}
+        disabled={permission !== 'granted' || inHold}
         className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
       >
         Capturar

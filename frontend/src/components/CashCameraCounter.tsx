@@ -18,6 +18,9 @@ type CashCameraCounterProps = {
 export function CashCameraCounter({ onConfirm }: CashCameraCounterProps) {
   const [autoCapture, setAutoCapture] = useState(true)
   const [pending, setPending] = useState<ClassificationResult | null>(null)
+  // true mientras el billete confirmado siga en el recuadro (recuadro en verde);
+  // lo limpia `handleCleared` cuando la cámara detecta la retirada.
+  const [confirmed, setConfirmed] = useState(false)
 
   const { data: apiSamples, isLoading } = useCashCalibrationSamples()
   const profiles = getProfiles(samplesFromApi(apiSamples ?? []))
@@ -45,6 +48,14 @@ export function CashCameraCounter({ onConfirm }: CashCameraCounterProps) {
   function handleConfirm(denominationCents: number) {
     onConfirm(denominationCents)
     setPending(null)
+    setConfirmed(true)
+  }
+
+  // La cámara emite esto al detectar movimiento sostenido tras una captura: el
+  // objeto salió del recuadro, así que se cierra el panel y se apaga el verde.
+  function handleCleared() {
+    setPending(null)
+    setConfirmed(false)
   }
 
   return (
@@ -59,7 +70,12 @@ export function CashCameraCounter({ onConfirm }: CashCameraCounterProps) {
         Captura automática al detectar un billete/moneda quieto
       </label>
 
-      <CameraCapture autoCapture={autoCapture} paused={pending !== null} onCapture={handleCapture} />
+      <CameraCapture
+        autoCapture={autoCapture}
+        confirmed={confirmed}
+        onCapture={handleCapture}
+        onCleared={handleCleared}
+      />
 
       {pending && (
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
